@@ -10,6 +10,8 @@ class ExampleTest(unittest.TestCase):
             self.assertEqual(
                 str(e), 'Resource not found. [NOT_FOUND]'
             )
+        except Exception as e:
+            self.fail("Unknown Exception: type: {}, exception: {}".format(type(e), str(e)))
 
 
 if __name__ == '__main__':
