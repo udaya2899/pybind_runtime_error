@@ -1,6 +1,3 @@
-bazel-bin/
-bazel-out/
-bazel-pybind_runtime_error/
-bazel-testlogs/
+bazel-*
 
 MODULE.bazel.lock
