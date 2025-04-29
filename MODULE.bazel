@@ -1,25 +1,26 @@
-'''
+"""
     A module to demonstrate pybind extension returning RuntimeError instead of StatusNotOk exception.
-'''
+"""
+
 module(
     name = "pybind_runtime_error",
     version = "0.0.1",
 )
 
-bazel_dep(name = "rules_cc", version = "0.0.17")
-bazel_dep(name = "rules_python", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "platforms", version = "0.0.11")
+
+bazel_dep(name = "rules_python", version = "1.4.0-rc4")
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 
 bazel_dep(name = "pybind11_bazel", version = "2.13.6")
 bazel_dep(name = "pybind11_abseil", version = "202402.0")
-bazel_dep(name = "abseil-cpp", version = "20240722.0.bcr.2", repo_name = "com_google_absl")
-bazel_dep(name = "toolchains_llvm", version = "1.2.0")
+bazel_dep(name = "abseil-cpp", version = "20250127.1", repo_name = "com_google_absl")
 
+bazel_dep(name = "toolchains_llvm", version = "1.4.0")
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
 llvm.toolchain(
     llvm_version = "19.1.0",
 )
-
 use_repo(llvm, "llvm_toolchain")
 register_toolchains("@llvm_toolchain//:all")
