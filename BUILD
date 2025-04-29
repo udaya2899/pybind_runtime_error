@@ -1,4 +1,5 @@
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_test")
 
 package(default_visibility = [
@@ -19,6 +20,11 @@ cc_library(
     name = "example",
     srcs = ["example.cc"],
     hdrs = ["example.h"],
+    copts = [
+        "-g",
+        "-fexceptions",
+        "-frtti",
+    ],
     deps = [
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -29,6 +35,17 @@ cc_library(
 pybind_extension(
     name = "example_bindings",
     srcs = ["example_bindings.cc"],
+    copts = [
+        "-g",
+        "-fexceptions",
+        "-frtti",
+    ],
+    linkopts = [
+        "-lc++",  # Request dynamic libc++
+        "-lc++abi",  # Request dynamic libc++abi
+        "-lunwind",  # Request dynamic libunwind
+    ],
+    linkstatic = False,
     deps = [
         ":example",
         "@pybind11_abseil//pybind11_abseil:status_casters",
