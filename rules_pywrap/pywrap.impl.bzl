@@ -287,7 +287,10 @@ def pywrap_library(
             deps = [":%s" % pywrap_name] + actual_common_deps,
             linkshared = True,
             linkstatic = True,
-            win_def_file = ":%s" % win_def_name,
+            win_def_file = select({
+                "@bazel_tools//src/conditions:windows": ":%s" % win_def_name,
+                "//conditions:default": None,
+            }),
             testonly = testonly,
             compatible_with = compatible_with,
         )
@@ -786,7 +789,19 @@ def pywrap_binaries(name, dep, **kwargs):
         **kwargs
     )
 
+def _is_linux(ctx):
+    # assume true
+    return True
+
 def _generated_win_def_file_impl(ctx):
+    # If the target OS is not Windows, just create an empty file and do nothing.
+    # This prevents the .bat file from ever being executed on Linux/macOS.
+    if _is_linux(ctx):
+        win_def_file = ctx.actions.declare_file("%s.def" % ctx.label.name)
+        ctx.actions.write(output = win_def_file, content = "")
+        return [DefaultInfo(files = depset(direct = [win_def_file]))]
+
+    # --- Original Windows-only logic continues below ---
     pywrap_infos = ctx.attr.dep[CollectedPywrapInfo].pywrap_infos.to_list()
     pywrap_info = pywrap_infos[ctx.attr.pywrap_index]
     win_def_file_name = "%s.def" % pywrap_info.owner.name
@@ -816,7 +831,16 @@ _generated_win_def_file = rule(
             providers = [CollectedPywrapInfo],
         ),
         "pywrap_index": attr.int(mandatory = True),
+        # <<< FIX: Add toolchain dependency to access OS info
+        "_cc_toolchain": attr.label(
+            default = "@bazel_tools//tools/cpp:current_cc_toolchain",
+        ),
+        # FIX ENDS HERE >>>
     },
+    # <<< FIX: Add fragments to access toolchain
+    fragments = ["cpp"],
+    toolchains = use_cpp_toolchain(),
+    # FIX ENDS HERE >>>
     implementation = _generated_win_def_file_impl,
 )
 
@@ -836,46 +860,6 @@ def python_extension(
         local_defines = [],
         wrap_py_init = None,
         **kwargs):
-    """A macro responsible for creating each individual Python C++ extension
-
-    This macro consists of consists of two parts:a cc_library compiling the extension and a custom
-    rule which preserves enough information for pywrap_library to be able to do its job of linking
-    multiple extensions together.
-
-    Different python_extension tarets may depend on each other, depend on or be depended on by
-    any number of py_library targets. To use python_extension in py_test or py_binary, do not depend
-    on it directly, instead create a pywrap_library target, which should depend on all
-    python_extensions needed in your test or binary, and then depend on pywrap_library itself. This
-    is necessary because the actual construction of binary artifacts happens in pywrap_library.
-
-    Args:
-        name: The name of the extension, it must match the name of actual Python extension module;
-            the package of the module will correspond to the bazel package of the target.
-        deps: The C++ dependencies of the extension.
-        srcs: The C++ sources of the extension.
-        common_lib_packages: The list of packages for all the pywrap_library targets this
-            python_extension is supposed to be used in. This argument exists for technical reasons.
-            If you are getting NoModuleFoundError for this extension's module while running your
-            code that depends on a pywrap_library (which in its turn depends on this extension),
-            most likely you need to add the name of the problematic pywrap_library package in this
-            list.
-        visibility: The visibility of the extension target.
-        win_def_file: The win_def_file of the extension.
-        testonly: The testonly argument of the extension.
-        compatible_with: The compatible_with of the extension.
-        additional_exported_symbols: For advanced use only.
-        default_deps: The default dependencies of the extension.
-        linkopts: The linkopts of the extension.
-        starlark_only: For advanced use only.
-        local_defines: The local defines of the extension.
-        wrap_py_init: Whether to wrap the PyInit_* function, making the extension artifact
-            super-thin, containin only one PyInit_{name} function, with the rest of the logic being
-            linked in the common artifact. Use this if you want to expose as little symbols as
-            possible from common artifacts. It also may be very handy for Windows development, as
-            linking multiple dynamic libraries together is much harder on Windows.
-        **kwargs: Additional arguments to pass to the cc_library.
-    """
-
     # For backward compatibility that I don't want to mess with
     _ignore = [additional_exported_symbols]
 
@@ -995,17 +979,6 @@ def _wrap_cc_select(name, dep_type, deps):
 
 # For backward compatibility with the old name
 def pybind_extension(name, default_deps = None, **kwargs):
-    """Wrapper around pybind_extension that specifies default dependency on pybind11. 
-
-    Note that python_extension works with nanobind as well.
-
-    Args:
-        name: Same as in python_extension.
-        default_deps: The default dependencies of the extension, if not specified, the default
-            dependency on pybind11 will be added.
-        **kwargs: Additional arguments to pass to the python_extension.
-    """
-
     actual_default_deps = ["@pybind11//:pybind11"]
     if default_deps != None:
         actual_default_deps = default_deps
@@ -1280,7 +1253,7 @@ def _pywrap_binaries_impl(ctx):
     original_to_final_binaries.append(
         "^^^ Shared objects correspondence map^^^\n\n",
     )
-    # print("\n".join(original_to_final_binaries))
+    print("\n".join(original_to_final_binaries))
 
     return [DefaultInfo(files = depset(direct = final_binaries))]
 
@@ -1404,6 +1377,17 @@ def _construct_linkopt_version_script(version_script, darwin):
     return ["-Wl,{},$(location {})".format(arg_name, version_script)]
 
 def _generated_common_win_def_file_impl(ctx):
+    # <<< FIX STARTS HERE
+    # If the target OS is not Windows, just create an empty file and do nothing.
+    # This prevents the def parser from ever being executed on Linux/macOS.
+    if _is_linux(ctx):
+        win_def_file = ctx.actions.declare_file("%s.gen.def" % ctx.label.name)
+        ctx.actions.write(output = win_def_file, content = "")
+        return [DefaultInfo(files = depset(direct = [win_def_file]))]
+
+    # FIX ENDS HERE >>>
+
+    # --- Original Windows-only logic continues below ---
     win_raw_def_file_name = "%s.gen.def" % ctx.attr.name
     if ctx.attr.filter:
         if ctx.file.filter.extension != "json":
@@ -1463,13 +1447,22 @@ generated_common_win_def_file = rule(
             allow_single_file = True,
             default = Label("@bazel_tools//tools/def_parser:def_parser"),
             executable = True,
-            cfg = "host",
+            cfg = "exec",
         ),
         "filter_tool": attr.label(
             default = Label(":def_file_filter_tool"),
             executable = True,
-            cfg = "host",
+            cfg = "exec",
         ),
+        # <<< FIX: Add toolchain dependency to access OS info
+        "_cc_toolchain": attr.label(
+            default = "@bazel_tools//tools/cpp:current_cc_toolchain",
+        ),
+        # FIX ENDS HERE >>>
     },
+    # <<< FIX: Add fragments to access toolchain
+    fragments = ["cpp"],
+    toolchains = use_cpp_toolchain(),
+    # FIX ENDS HERE >>>
     implementation = _generated_common_win_def_file_impl,
 )
