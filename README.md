@@ -1,6 +1,6 @@
 **pybind11_abseil returns `RuntimeError` instead of `status.StatusNotOk` in a hermetic C++ setup.**
 
-Requirements:
+### Requirements:
 - [bazelisk](https://github.com/bazelbuild/bazelisk) preinstalled 
 - Linux (maybe possible to add support for Mac/Windows if needed but I haven't tried).
 
@@ -9,6 +9,7 @@ To reproduce:
 bazel test :example_test
 ```
 
+### Error
 You'll see an output like this:
 ```
 Traceback (most recent call last):
@@ -17,6 +18,4 @@ Traceback (most recent call last):
 AssertionError: Unknown Exception: type: <class 'RuntimeError'>, exception: Caught an unknown exception!
 ```
 
-The thing to note is, before adding hermetic cc toolchain setup, at commit `2f15ac`, when using the non-hermetic native toolchain of the host machine, it returned StatusNotOk as expected.
-
-On adding a new hermetic toolchain using `uber/hermetic_cc_toolchains` at commit `f90080`, it returned `RuntimeError` instead of `status.StatusNotOk`. The same also happened even after switching to `toolchains_llvm`.
+### Attempt to fix this using rules_pywrap

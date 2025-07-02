@@ -17,7 +17,7 @@ python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 
 bazel_dep(name = "pybind11_bazel", version = "2.13.6")
 bazel_dep(name = "pybind11_abseil", version = "202402.0")
-bazel_dep(name = "abseil-cpp", version = "20250127.1", repo_name = "com_google_absl")
+bazel_dep(name = "abseil-cpp", version = "20250512.1", repo_name = "com_google_absl")
 
 bazel_dep(name = "toolchains_llvm", version = "1.4.0")
 llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
